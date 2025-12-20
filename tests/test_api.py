@@ -183,6 +183,29 @@ class ApiTests(unittest.TestCase):
             ("tv", 100, "de", "DE", "Deutsche Serie", "Serien Übersicht", "", ""),
         )
         con.execute(
+            "INSERT INTO series(id,name,vote_average,vote_count,first_air_date,overview,popularity,poster_path,backdrop_path,logos_json,genres,networks,number_of_seasons,number_of_episodes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                101,
+                "Game of Thrones",
+                9.2,
+                5000,
+                d30,
+                "A story of thrones.",
+                600.0,
+                "/got_poster.jpg",
+                "/got_backdrop.jpg",
+                '{"en":"/got_logo_en.png","de":"/got_logo_de.png"}',
+                "Drama",
+                "HBO",
+                8,
+                73,
+            ),
+        )
+        con.execute(
+            "INSERT INTO title_translations(media_type,tmdb_id,iso_639_1,iso_3166_1,title,overview,tagline,homepage) VALUES(?,?,?,?,?,?,?,?)",
+            ("tv", 101, "de", "DE", "Spiel der Throne", "Eine Geschichte.", "", ""),
+        )
+        con.execute(
             "INSERT INTO tv_seasons(series_id,season_number,name,episode_count) VALUES(?,?,?,?)",
             (100, 1, "Season 1", 8),
         )
@@ -299,6 +322,20 @@ class ApiTests(unittest.TestCase):
         d = json.loads(b)
         self.assertEqual(d["query"], "Deutscher")
         self.assertTrue(d["results"])
+
+        q = quote("thrones")
+        s, _, b = _req(self.port, f"/v1/search/{q}?lang=de")
+        self.assertEqual(s, 200)
+        d = json.loads(b)
+        ids = {it["id"] for it in d["results"]}
+        self.assertIn(101, ids)
+
+        q = quote("thrones")
+        s, _, b = _req(self.port, f"/v1/search/{q}", {"Accept-Language": "de-DE,de;q=0.9"})
+        self.assertEqual(s, 200)
+        d = json.loads(b)
+        ids = {it["id"] for it in d["results"]}
+        self.assertIn(101, ids)
 
     def test_title_tmdb_fallback_when_missing_locally(self):
         app = self.httpd.app

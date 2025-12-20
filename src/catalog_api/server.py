@@ -218,6 +218,8 @@ class H(BaseHTTPRequestHandler):
         path = u.path
         qs = parse_qs(u.query or "")
         iso639, iso3166 = _pick_lang(qs, self.headers.get("Accept-Language"))
+        if (path == "/v1/search" or path.startswith("/v1/search/")) and not (qs.get("lang") or [""])[0].strip():
+            iso639, iso3166 = ("en", None)
 
         if path in ("/ping", "/health"):
             self._send(200, b"ok\n")
@@ -660,6 +662,8 @@ class APIServer(ThreadingHTTPServer):
                     if st != 200 or not data or mt not in ("movie", "tv"):
                         return None
                     self.app._upsert_tmdb_base(con, mt, tid, data)
+                    if mt == "tv":
+                        self.app._upsert_tmdb_tv_seasons_episodes(con, tid, lang_tag, data)
                     con.commit()
                     if self.app._missing_parts(con, mt, tid, iso639, iso3166, full=True):
                         self.app._schedule_backfill(mt, tid, iso639, iso3166, full=True)
@@ -967,23 +971,30 @@ class APIServer(ThreadingHTTPServer):
         try:
             sql = """
             SELECT id,kind,name,dt,rating,pop,poster,backdrop,logos FROM (
-              SELECT m.id id,'movie' kind,COALESCE(tt.title,m.title) name,m.release_date dt,m.vote_average rating,m.popularity pop,m.poster_path poster,m.backdrop_path backdrop,m.logos_json logos,
-                     COALESCE(tt.overview,m.overview) over
+              SELECT m.id id,'movie' kind,
+                     m.title base_name,m.overview base_over,
+                     tt.title tr_name,tt.overview tr_over,
+                     COALESCE(tt.title,m.title) name,
+                     m.release_date dt,m.vote_average rating,m.popularity pop,m.poster_path poster,m.backdrop_path backdrop,m.logos_json logos
               FROM movies m
               LEFT JOIN title_translations tt
                 ON tt.media_type='movie' AND tt.tmdb_id=m.id AND tt.iso_639_1=?
               UNION ALL
-              SELECT s.id id,'series' kind,COALESCE(tt.title,s.name) name,s.first_air_date dt,s.vote_average rating,s.popularity pop,s.poster_path poster,s.backdrop_path backdrop,s.logos_json logos,
-                     COALESCE(tt.overview,s.overview) over
+              SELECT s.id id,'series' kind,
+                     s.name base_name,s.overview base_over,
+                     tt.title tr_name,tt.overview tr_over,
+                     COALESCE(tt.title,s.name) name,
+                     s.first_air_date dt,s.vote_average rating,s.popularity pop,s.poster_path poster,s.backdrop_path backdrop,s.logos_json logos
               FROM series s
               LEFT JOIN title_translations tt
                 ON tt.media_type='tv' AND tt.tmdb_id=s.id AND tt.iso_639_1=?
             )
-            WHERE COALESCE(name,'') LIKE ? OR COALESCE(over,'') LIKE ?
+            WHERE COALESCE(tr_name,'') LIKE ? OR COALESCE(tr_over,'') LIKE ?
+               OR COALESCE(base_name,'') LIKE ? OR COALESCE(base_over,'') LIKE ?
             ORDER BY COALESCE(pop,0) DESC
             LIMIT ?
             """.strip()
-            rows = con.execute(sql, (iso639, iso639, like, like, limit)).fetchall()
+            rows = con.execute(sql, (iso639, iso639, like, like, like, like, limit)).fetchall()
             out = []
             for r0 in rows:
                 r = dict(r0)
