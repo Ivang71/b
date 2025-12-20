@@ -1,12 +1,17 @@
 movies:
+```bash
 python3 fetch_movies.py
 python3 enrich_logos.py
+```
 
 series:
+```bash
 python3 fetch_tv_series_csv.py
 python3 enrich_tv_logos.py
+```
 
 merged:
+```bash
 python3 merge_movie_tv_dbs.py
 python3 enrich_translations.py
 python3 enrich_credits.py
@@ -14,6 +19,7 @@ python3 enrich_videos.py
 python3 enrich_genres.py
 python3 migrate_drop_series_genres.py
 <!-- python3 enrich_episodes.py -->
+```
 
 
 ```bash
@@ -25,27 +31,37 @@ scp -c aes128-ctr catalog.sqlite root@host:/opt/origin-api/
 ```
 
 ping:
+```bash
 curl -fsS http://127.0.0.1/ping
 curl -kfsS https://127.0.0.1/ping
+```
 
 setup (service + cloudflare-only firewall):
 create an Origin Certificate in cloudflare, then:
+```bash
 ./setup_server.sh origin.crt origin.key
 ./setup_server.sh /etc/origin-api/tls.crt /etc/origin-api/tls.key # reinstall
+```
 
 service control:
+```bash
 systemctl status origin-api.service --no-pager
 systemctl restart origin-api.service                # restart
 journalctl -u origin-api.service -n 200 --no-pager
+```
 
 firewall control:
+```bash
 systemctl status cloudflare-firewall.timer --no-pager
 systemctl start cloudflare-firewall.service
 journalctl -u cloudflare-firewall.service -n 200 --no-pager
+```
 
 
 ## after code change:
+```bash
 ./setup_server.sh /etc/origin-api/tls.crt /etc/origin-api/tls.key && systemctl restart origin-api.service
+```
 
 
 # Setup
